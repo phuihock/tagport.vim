@@ -45,10 +45,10 @@ function s:FindSource(expr)
     for t in tags
         let filename = t['filename']
         if index(sources, filename) == -1
-            let kind = t['kind']
-            if kind == 'f'
+            let kind = toupper(t['kind'])
+            if kind == 'F'
                 let source = strpart(filename, 0, match(filename, "/" . a:expr . ".py"))
-            elseif kind == 'c'
+            elseif kind == 'C'
                 let source = filename
             else
                 let source = ''
