@@ -8,6 +8,11 @@
 "
 " Place this script in $HOME/.vim/ftplugin/python.
 
+if exists("g:loaded_tagport")
+    finish
+endif
+let g:loaded_tagport = 1
+
 function s:StripDir(path)
 python << EOF
 from vim import *
@@ -36,16 +41,22 @@ endfunction
 
 function s:FindSource(expr)
     let sources = []
-    let tags = taglist("^" . a:expr)
+    let tags = taglist('^' . a:expr . '$\|' . a:expr . '\.py$')
     for t in tags
         let filename = t['filename']
         if index(sources, filename) == -1
-            if t['kind'] == 'F'
+            let kind = t['kind']
+            if kind == 'f'
                 let source = strpart(filename, 0, match(filename, "/" . a:expr . ".py"))
-            else
+            elseif kind == 'c'
                 let source = filename
+            else
+                let source = ''
             endif
-            call add(sources, source)
+
+            if len(source) > 0
+                call add(sources, source)
+            endif
         endif
     endfor 
 
