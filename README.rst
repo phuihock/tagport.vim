@@ -8,7 +8,7 @@ Exuberant Ctags (ctags)
         noremap <F12>   :call RenewTagsFile()<Enter>
 
         function! UpdateTagsFile()
-            exe 'silent !sed -i "\:%:d" tags'
+            exe 'silent !sed -i "\:expand(%):d" tags'
             exe 'silent !ctags -a -f tags --extra=f % 2>/dev/null'
             exe 'redraw!'
         endfunction
@@ -47,4 +47,4 @@ Usage
 
 #. Type a number.
 
-#. Put the import statement anywhere you like with ``p``.  *Tip: quickly jump back to last cursor position with '' (double single-quote)*
+#. Put the import statement anywhere you like with ``p``.  *Tip: quickly jump back to last cursor position with `` (double backticks)*
