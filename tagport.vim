@@ -13,7 +13,7 @@ if exists("g:loaded_tagport")
 endif
 let g:loaded_tagport = 1
 
-function s:StripDir(path)
+function! s:StripDir(path)
 python << EOF
 from vim import *
 import sys
@@ -29,7 +29,7 @@ command('return "%s"' % apath)
 EOF
 endfunction
 
-function s:AsPythonImport(path, expr)
+function! s:AsPythonImport(path, expr)
     let path = s:StripDir(a:path)
     let path = substitute(path, '\(.*\).py$', '\1', "")
     let path = substitute(path, '/', '.', "g")
@@ -39,24 +39,36 @@ function s:AsPythonImport(path, expr)
         return "import " . a:expr
 endfunction
 
-function s:FindSource(expr)
+function! s:FindSource(expr)
     let sources = []
-    let tags = taglist('^' . a:expr . '$\|' . a:expr . '\.py$')
+
+    " we are only interested in classes, modules and search paths
+    let tags = taglist('\(^__init__\.py$\|^' . a:expr . '$\|^' . a:expr . '\.py$\)')
     for t in tags
         let filename = t['filename']
         if index(sources, filename) == -1
             let kind = toupper(t['kind'])
             if kind == 'F'
-                let source = strpart(filename, 0, match(filename, "/" . a:expr . ".py"))
+                if t['name'] == '__init__.py'
+                    " this is a search path, eg. /a/b/c/__init__.py
+                    let matches = matchlist(filename, '^\(/.*\)/' . a:expr . '/__init__.py$')
+                    if len(matches) > 1
+                        let source = matches[1]
+                    else
+                        continue
+                    endif
+                else
+                    " this is a module, eg. /a/b/c.py
+                    let source = matchlist(filename, '^\(/.*\)/' . a:expr . '.py$')[1]
+                endif
             elseif kind == 'C'
+                " this is a class, eg. class C(..)
                 let source = filename
             else
-                let source = ''
+                continue
             endif
 
-            if len(source) > 0
-                call add(sources, source)
-            endif
+            call add(sources, source)
         endif
     endfor 
 
@@ -84,7 +96,7 @@ function s:FindSource(expr)
     endif
 endfunction 
 
-function s:FindByCWord()
+function! s:FindByCWord()
     return s:FindSource(expand("<cword>"))
 endfunction
 
