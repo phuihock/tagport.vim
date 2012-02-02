@@ -19,24 +19,57 @@ from vim import *
 import sys
 
 apath = eval("a:path")
-paths = sys.path
+if os.path.isfile(apath):
+    mpath = os.path.dirname(apath)
+else:
+    mpath = apath
+
+spath = ''
+
+paths = sys.path[:]
 paths.sort(lambda a, b: cmp(len(b), len(a)))
 for p in paths:
-    if apath.startswith(p):
-        apath = apath[len(p):].lstrip('/')
-        break
-command('return "%s"' % apath)
+    if mpath.startswith(p):
+        subdirs = mpath[len(p):].lstrip('/')
+        q = p
+
+
+        # test if the path is importable
+        is_valid = True
+        for s in subdirs.split('/'):
+            q = os.path.join(q, s)
+            t = os.path.join(q, '__init__.py') 
+            if not os.path.exists(t):
+                is_valid = False 
+                break
+
+        if is_valid:
+            spath = subdirs
+            break
+
+command('return "%s"' % spath)
 EOF
 endfunction
 
 function! s:AsPythonImport(path, expr)
     let path = s:StripDir(a:path)
-    let path = substitute(path, '\(.*\).py$', '\1', "")
-    let path = substitute(path, '/', '.', "g")
     if len(path) > 0
-        return "from " . path . " import " . a:expr
-    else
-        return "import " . a:expr
+        let path = substitute(path, '/', '.', "g")
+
+        if exists('g:tagport_aliases')
+            if has_key(g:tagport_aliases, path)
+                let path = g:tagport_aliases[path]
+            endif
+        endif
+
+        if len(path) > 0
+            let stmt = "from " . path . " import " . a:expr
+        else
+            let stmt = "import " . a:expr
+        endif
+        return [stmt, path, a:path, a:expr]
+    endif
+    return []
 endfunction
 
 function! s:FindSource(expr)
@@ -51,15 +84,16 @@ function! s:FindSource(expr)
             if kind == 'F'
                 if t['name'] == '__init__.py'
                     " this is a search path, eg. /a/b/c/__init__.py
-                    let matches = matchlist(filename, '^\(/.*\)/' . a:expr . '/__init__.py$')
-                    if len(matches) > 1
-                        let source = matches[1]
-                    else
-                        continue
-                    endif
+                    let matches = matchlist(filename, '^\(.*\)/' . a:expr . '/__init__.py$')
                 else
                     " this is a module, eg. /a/b/c.py
-                    let source = matchlist(filename, '^\(/.*\)/' . a:expr . '.py$')[1]
+                    let matches = matchlist(filename, '^\(.*\)/' . a:expr . '.py$')
+                endif
+
+                if len(matches) > 1
+                    let source = matches[1]
+                else
+                    continue
                 endif
             elseif kind == 'C'
                 " this is a class, eg. class C(..)
@@ -76,8 +110,22 @@ function! s:FindSource(expr)
         let imports = []
         for s in sources
             let import = s:AsPythonImport(s, a:expr)
-            if index(imports, import) == -1
-                call add(imports, import)
+            if len(import) > 0
+                if index(imports, import[0]) == -1
+                    let use_import = 1
+                    if exists('g:tagport_ignore')
+                        for ignore in g:tagport_ignore
+                            if match(import[1], ignore) > -1
+                                let use_import = 0
+                                break
+                            endif
+                        endfor
+                    endif
+
+                    if use_import
+                        call add(imports, import[0])
+                    endif
+                endif
             endif
         endfor
         call sort(imports)
