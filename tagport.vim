@@ -51,7 +51,7 @@ command('return "%s"' % spath)
 EOF
 endfunction
 
-function! s:AsPythonImport(path, expr)
+function! s:AsPythonImport(path, cword)
     let path = s:StripDir(a:path)
     if len(path) > 0
         let path = substitute(path, '/', '.', "g")
@@ -63,20 +63,20 @@ function! s:AsPythonImport(path, expr)
         endif
 
         if len(path) > 0
-            let stmt = "from " . path . " import " . a:expr
+            let stmt = "from " . path . " import " . a:cword
         else
-            let stmt = "import " . a:expr
+            let stmt = "import " . a:cword
         endif
-        return [stmt, path, a:path, a:expr]
+        return [stmt, path, a:path, a:cword]
     endif
     return []
 endfunction
 
-function! s:FindSource(expr)
+function! s:FindSource(cword)
     let sources = []
 
     " we are only interested in classes, modules and search paths
-    let tags = taglist('\(^__init__\.py$\|^' . a:expr . '$\|^' . a:expr . '\.py$\)')
+    let tags = taglist('\(^__init__\.py$\|^' . a:cword . '$\|^' . a:cword . '\.py$\)')
     for t in tags
         let filename = t['filename']
         if index(sources, filename) == -1
@@ -84,10 +84,10 @@ function! s:FindSource(expr)
             if kind == 'F'
                 if t['name'] == '__init__.py'
                     " this is a search path, eg. /a/b/c/__init__.py
-                    let matches = matchlist(filename, '^\(.*\)/' . a:expr . '/__init__.py$')
+                    let matches = matchlist(filename, '^\(.*\)/' . a:cword . '/__init__.py$')
                 else
                     " this is a module, eg. /a/b/c.py
-                    let matches = matchlist(filename, '^\(.*\)/' . a:expr . '.py$')
+                    let matches = matchlist(filename, '^\(.*\)/' . a:cword . '.py$')
                 endif
 
                 if len(matches) > 1
@@ -109,7 +109,7 @@ function! s:FindSource(expr)
     if len(sources) > 0
         let imports = []
         for s in sources
-            let import = s:AsPythonImport(s, a:expr)
+            let import = s:AsPythonImport(s, a:cword)
             if len(import) > 0
                 if index(imports, import[0]) == -1
                     let use_import = 1
