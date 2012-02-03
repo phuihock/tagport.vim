@@ -19,42 +19,45 @@ from vim import *
 import sys
 
 apath = eval("a:path")
-if os.path.isfile(apath):
-    mpath = os.path.dirname(apath)
-else:
-    mpath = apath
-
 spath = ''
+is_package = False
 
 paths = sys.path[:]
 paths.sort(lambda a, b: cmp(len(b), len(a)))
+
 for p in paths:
-    if mpath.startswith(p):
-        subdirs = mpath[len(p):].lstrip('/')
-        q = p
-
-
-        # test if the path is importable
-        is_valid = True
-        for s in subdirs.split('/'):
-            q = os.path.join(q, s)
-            t = os.path.join(q, '__init__.py') 
-            if not os.path.exists(t):
-                is_valid = False 
+    if apath.startswith(p):
+        spath = apath[len(p):].lstrip('/')
+        if spath:
+            # do a shallow check of the path if indeed a package
+            root = spath.split('/')[0]
+            if os.path.exists(os.path.join(p, root, '__init__.py')):
+                is_package = True
                 break
-
-        if is_valid:
-            spath = subdirs
+            else:
+                spath = ''
+        else:
+            is_package = True
             break
+command('return ["%s", %i]' %(spath, is_package)) 
+EOF
+endfunction
 
-command('return "%s"' % spath)
+function! s:GetRealPath(path)
+python << EOF
+from vim import *
+import os
+
+apath = eval("a:path")
+rpath = os.path.realpath(apath)
+command('return "%s"' % rpath)
 EOF
 endfunction
 
 function! s:AsPythonImport(path, cword)
-    let path = s:StripDir(a:path)
-    if len(path) > 0
-        let path = substitute(path, '/', '.', "g")
+    let stripped_dir = s:StripDir(a:path)
+    if len(stripped_dir[0]) > 0 || stripped_dir[1]
+        let path = substitute(stripped_dir[0], '/', '.', "g")
 
         if exists('g:tagport_aliases')
             if has_key(g:tagport_aliases, path)
@@ -67,67 +70,74 @@ function! s:AsPythonImport(path, cword)
         else
             let stmt = "import " . a:cword
         endif
-        return [stmt, path, a:path, a:cword]
+
+        if len(stmt) > 0
+            return [stmt, path, a:path, a:cword]
+        endif
     endif
+
     return []
 endfunction
 
 function! s:FindSource(cword)
-    let sources = []
+    let ignorecase = &ignorecase
+    set noignorecase
 
-    " we are only interested in classes, modules and search paths
+    let sources = []
+    let imports = []
+
+    " we are only interested in classes, modules and packages
     let tags = taglist('\(^__init__\.py$\|^' . a:cword . '$\|^' . a:cword . '\.py$\)')
     for t in tags
-        let filename = t['filename']
+        let filename = s:GetRealPath(t['filename'])
         if index(sources, filename) == -1
             let kind = toupper(t['kind'])
             if kind == 'F'
                 if t['name'] == '__init__.py'
-                    " this is a search path, eg. /a/b/c/__init__.py
+                    " this is a package, eg. /a/b/c/__init__.py
                     let matches = matchlist(filename, '^\(.*\)/' . a:cword . '/__init__.py$')
                 else
-                    " this is a module, eg. /a/b/c.py
+                    " this is a module, eg /a/b/c.py
                     let matches = matchlist(filename, '^\(.*\)/' . a:cword . '.py$')
                 endif
-
-                if len(matches) > 1
-                    let source = matches[1]
+            elseif kind == 'C' || kind == 'V'
+                if match(filename, '__init__.py$') != -1
+                    " this is a package, eg. /a/b/d/__init__.py
+                    let matches = matchlist(filename, '^\(.*\)/__init__.py$')
                 else
-                    continue
+                    " this is a a class, eg class C(..)
+                    let matches = matchlist(filename, '^\(.*\).py$')
                 endif
-            elseif kind == 'C'
-                " this is a class, eg. class C(..)
-                let source = filename
             else
                 continue
             endif
 
-            call add(sources, source)
+            if len(matches) > 0
+                let import = s:AsPythonImport(matches[1], a:cword)
+                if len(import) > 0
+                    if index(imports, import[0]) == -1
+                        let use_import = 1
+                        if exists('g:tagport_ignore')
+                            for ignore in g:tagport_ignore
+                                if match(import[1], ignore) > -1
+                                    let use_import = 0
+                                    break
+                                endif
+                            endfor
+                        endif
+
+                        if use_import
+                            call add(imports, import[0])
+                        endif
+                    endif
+                endif
+
+                call add(sources, filename)
+            endif
         endif
     endfor 
 
-    if len(sources) > 0
-        let imports = []
-        for s in sources
-            let import = s:AsPythonImport(s, a:cword)
-            if len(import) > 0
-                if index(imports, import[0]) == -1
-                    let use_import = 1
-                    if exists('g:tagport_ignore')
-                        for ignore in g:tagport_ignore
-                            if match(import[1], ignore) > -1
-                                let use_import = 0
-                                break
-                            endif
-                        endfor
-                    endif
-
-                    if use_import
-                        call add(imports, import[0])
-                    endif
-                endif
-            endif
-        endfor
+    if len(imports) > 0
         call sort(imports)
 
         echo "  #" . "\tsource"
@@ -142,6 +152,8 @@ function! s:FindSource(cword)
     else
         echo "No match found"
     endif
+
+    let &ignorecase=ignorecase
 endfunction 
 
 function! s:FindByCWord()
