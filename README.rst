@@ -48,3 +48,24 @@ Usage
 #. Type a number.
 
 #. Put the import statement anywhere you like with ``p``.  *Tip: quickly jump back to last cursor position with `` (double backticks)*
+
+
+Options
+=======
+let g:tagport_aliases = {}
+    There are times when importing from a different package is preferred as apposed to the actual Python module the class is defined. 
+    For example, Django's ``Model`` is declared in ``django.db.models.base``. However, it is a common practice that ``Model`` 
+    is imported from ``django.db.models`` instead.
+
+    To do that, declare the following in ``.vimrc``::
+
+        let g:tagport_aliases = {'django.db.models.base': 'django.db.models'}
+
+    The next time you search for ``Model``, ``from django.db.models import Model`` is listed instead.
+
+
+let g:tagport_ignore = []
+    ``models`` can be found in many places, but not all are useful. You can hide any entry with ``g:tagport_ignore``.
+    For example, if you want to hide all ``models`` from ``migrations`` directory, declare the following in ``.vimrc``::
+        
+        let g:tagport_ignore = ['.*migrations.*']
