@@ -3,7 +3,7 @@
 "
 " Requirement: Exuberant Ctags (ctags)
 " Maintainer: Chang Phui-Hock <phuihock@gmail.com>
-" Version: 0.1
+" Version: 0.2
 " License:  This file is placed in the public domain.
 "
 " Place this script in $HOME/.vim/ftplugin/python.
